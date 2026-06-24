@@ -6,8 +6,9 @@ function show_help
     echo "Usage: entrokey.fish [OPTIONS] [MNEMONIC WORDS...]"
     echo ""
     echo "Options:"
-    echo "  -h, --help              Show this help message and exit"
-    echo "  -n, --no-password       Skip passphrase prompt and do not encrypt the private key"
+    echo "  -h, --help                  Show this help message and exit"
+    echo "  -n, --no-password           Skip passphrase prompt and do not encrypt the private key"
+    echo "  -g, --generate-mnemonic     Generate a secure 12-word Diceware mnemonic instead of requiring one"
     echo ""
     echo "Description:"
     echo "  Takes a space-separated BIP39 mnemonic (or Diceware words) as input,"
@@ -15,15 +16,16 @@ function show_help
     echo "  and writes an OpenSSH-formatted private key (optionally encrypted)"
     echo "  plus the corresponding .pub file."
     echo ""
-    echo "  If no mnemonic is provided on the command line, the script will"
-    echo "  prompt interactively (unless --generate-mnemonic is used)."
+    echo "  Use -g to auto-generate a cryptographically secure 12-word mnemonic from the"
+    echo "  EFF Diceware list (printed for you to save/write down)."
     echo ""
     echo "Examples:"
     echo "  entrokey.fish \"abandon ability able about above absent absorb abstract absurd abuse access accident\""
+    echo "  entrokey.fish -g -n"
     echo "  entrokey.fish -h"
 end
 
-argparse --stop-nonopt 'h/help' 'n/no-password' -- $argv
+argparse --stop-nonopt 'h/help' 'n/no-password' 'g/generate-mnemonic' -- $argv
 or return 1
 
 if set -q _flag_help
@@ -31,7 +33,16 @@ if set -q _flag_help
     exit 0
 end
 
-set mnemonic $argv
+if set -q _flag_generate_mnemonic
+    set mnemonic (shuf -n 12 diceware.txt | string join ' ')
+    echo "Generated mnemonic (SAVE THIS!): $mnemonic"
+else
+    if test (count $argv) -eq 0
+        echo "Error: No mnemonic provided. Use -g/--generate-mnemonic to auto-generate one."
+        exit 1
+    end
+    set mnemonic $argv
+end
 
 set -l use_encryption 1
 if set -q _flag_no_password
