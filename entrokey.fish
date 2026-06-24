@@ -7,6 +7,7 @@ function show_help
     echo ""
     echo "Options:"
     echo "  -h, --help              Show this help message and exit"
+    echo "  -n, --no-password       Skip passphrase prompt and do not encrypt the private key"
     echo ""
     echo "Description:"
     echo "  Takes a space-separated BIP39 mnemonic (or Diceware words) as input,"
@@ -22,7 +23,7 @@ function show_help
     echo "  entrokey.fish -h"
 end
 
-argparse --stop-nonopt 'h/help' -- $argv
+argparse --stop-nonopt 'h/help' 'n/no-password' -- $argv
 or return 1
 
 if set -q _flag_help
