@@ -33,6 +33,11 @@ end
 
 set mnemonic $argv
 
+set -l use_encryption 1
+if set -q _flag_no_password
+    set use_encryption 0
+end
+
 read -P "Filename without extension (e.g. id_ed25519): " basename
 
 if test -z "$basename"
@@ -40,23 +45,28 @@ if test -z "$basename"
     exit 1
 end
 
-read -s -P "Enter passphrase for private key: " passphrase
-read -s -P "Confirm passphrase: " passphrase2
+if test $use_encryption -eq 1
+    read -s -P "Enter passphrase for private key: " passphrase
+    read -s -P "Confirm passphrase: " passphrase2
 
-if test "$passphrase" != "$passphrase2"
-    echo "Passphrases do not match. Aborting."
-    exit 1
-end
+    if test "$passphrase" != "$passphrase2"
+        echo "Passphrases do not match. Aborting."
+        exit 1
+    end
 
-if test -z "$passphrase"
-    echo "No passphrase provided. Aborting."
-    exit 1
+    if test -z "$passphrase"
+        echo "No passphrase provided. Aborting."
+        exit 1
+    end
+else
+    set passphrase ""
 end
 
 set priv_key "$basename"
 set pub_key  "$basename.pub"
 
-python3 -c "
+if test $use_encryption -eq 1
+    python3 -c "
 from mnemonic import Mnemonic
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -91,6 +101,40 @@ with open('$pub_key', 'wb') as f:
 
 print('Encrypted private key generated successfully')
 " 2>&1
+else
+    python3 -c "
+from mnemonic import Mnemonic
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives import serialization
+import sys
+
+mnemo = Mnemonic('english')
+seed = mnemo.to_seed('$mnemonic', passphrase='')
+
+hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b'ed25519-key-from-bip39')
+key_bytes = hkdf.derive(seed)
+
+priv = Ed25519PrivateKey.from_private_bytes(key_bytes)
+pub = priv.public_key()
+
+with open('$priv_key', 'wb') as f:
+    f.write(priv.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.OpenSSH,
+        encryption_algorithm=serialization.NoEncryption()
+    ))
+
+with open('$pub_key', 'wb') as f:
+    f.write(pub.public_bytes(
+        encoding=serialization.Encoding.OpenSSH,
+        format=serialization.PublicFormat.OpenSSH
+    ))
+
+print('Unencrypted private key generated successfully')
+" 2>&1
+end
 
 if test $status -ne 0
     echo "Failed to generate key."
@@ -101,7 +145,11 @@ end
 chmod 600 "$priv_key"
 
 echo
-echo "✓ Created (private key is encrypted with passphrase):"
+if test $use_encryption -eq 1
+    echo "✓ Created (private key is encrypted with passphrase):"
+else
+    echo "✓ Created (private key is NOT encrypted):"
+end
 echo "  Private key : $priv_key"
 echo "  Public key  : $pub_key"
 echo
