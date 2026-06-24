@@ -1,8 +1,33 @@
 #!/usr/bin/env fish
 
-if test (count $argv) -eq 0
-    echo "Usage: sshdkey.fish \"your mnemonic words here\""
-    exit 1
+function show_help
+    echo "entrokey.fish - Generate encrypted ed25519 SSH keys from a BIP39 mnemonic or Diceware words"
+    echo ""
+    echo "Usage: entrokey.fish [OPTIONS] [MNEMONIC WORDS...]"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help              Show this help message and exit"
+    echo ""
+    echo "Description:"
+    echo "  Takes a space-separated BIP39 mnemonic (or Diceware words) as input,"
+    echo "  derives a deterministic ed25519 private key using HKDF-SHA256,"
+    echo "  and writes an OpenSSH-formatted private key (optionally encrypted)"
+    echo "  plus the corresponding .pub file."
+    echo ""
+    echo "  If no mnemonic is provided on the command line, the script will"
+    echo "  prompt interactively (unless --generate-mnemonic is used)."
+    echo ""
+    echo "Examples:"
+    echo "  entrokey.fish \"abandon ability able about above absent absorb abstract absurd abuse access accident\""
+    echo "  entrokey.fish -h"
+end
+
+argparse --stop-nonopt 'h/help' -- $argv
+or return 1
+
+if set -q _flag_help
+    show_help
+    exit 0
 end
 
 set mnemonic $argv
