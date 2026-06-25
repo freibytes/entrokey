@@ -18,6 +18,7 @@ function show_help
     echo "  -n, --no-password           Generate unencrypted private key (no passphrase)"
     echo "  -g, --generate-mnemonic     Generate a secure Diceware mnemonic"
     echo "  -w, --words N               Number of diceware words when using -g (default: 12)"
+    echo "  -m, --move-keys             Move keys to \$HOME/.ssh/ (if dir exists) after chmod 600"
     echo ""
     echo "Description:"
     echo "  Derives an ed25519 private key deterministically from a mnemonic using"
@@ -46,6 +47,7 @@ argparse \
     'n/no-password' \
     'g/generate-mnemonic' \
     'w/words=' \
+    'm/move-keys' \
     -- $argv
 or return 1
 
@@ -208,6 +210,20 @@ if test $status -ne 0
 end
 
 chmod 600 "$priv_key"
+chmod 644 "$pub_key" 2>/dev/null || true
+
+set -l moved 0
+if set -q _flag_move_keys
+    if test -d "$HOME/.ssh"
+        mv "$priv_key" "$pub_key" "$HOME/.ssh/"
+        set priv_key "$HOME/.ssh/$basename"
+        set pub_key "$HOME/.ssh/$basename.pub"
+        chmod 600 "$priv_key"
+        set moved 1
+    else
+        echo "Note: \$HOME/.ssh does not exist — keys left in current directory" >&2
+    end
+end
 
 echo
 echo "✓ Key generated successfully"
@@ -227,5 +243,8 @@ if test $use_encryption -eq 1
     echo "  (private key is encrypted with a passphrase)"
 else
     echo "  (private key is NOT encrypted)"
+end
+if test $moved -eq 1
+    echo "  (keys moved to \$HOME/.ssh)"
 end
 echo
