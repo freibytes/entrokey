@@ -1,31 +1,52 @@
 #!/usr/bin/env fish
 
+set -g VERSION "0.2.0"
+
+function show_version
+    echo "entrokey $VERSION"
+end
+
 function show_help
-    echo "entrokey.fish - Generate encrypted ed25519 SSH keys from a BIP39 mnemonic or Diceware words"
+    echo "entrokey.fish - Generate deterministic ed25519 SSH keys from BIP39 or Diceware"
     echo ""
     echo "Usage: entrokey.fish [OPTIONS] [MNEMONIC WORDS...]"
     echo ""
     echo "Options:"
     echo "  -h, --help                  Show this help message and exit"
-    echo "  -n, --no-password           Skip passphrase prompt and do not encrypt the private key"
-    echo "  -g, --generate-mnemonic     Generate a secure 12-word Diceware mnemonic instead of requiring one"
+    echo "  -V, --version               Show version and exit"
+    echo "  -f, --filename NAME         Output filename base (skips interactive prompt)"
+    echo "  -n, --no-password           Generate unencrypted private key (no passphrase)"
+    echo "  -g, --generate-mnemonic     Generate a secure Diceware mnemonic"
+    echo "  -w, --words N               Number of diceware words when using -g (default: 12)"
     echo ""
     echo "Description:"
-    echo "  Takes a space-separated BIP39 mnemonic (or Diceware words) as input,"
-    echo "  derives a deterministic ed25519 private key using HKDF-SHA256,"
-    echo "  and writes an OpenSSH-formatted private key (optionally encrypted)"
-    echo "  plus the corresponding .pub file."
+    echo "  Derives an ed25519 private key deterministically from a mnemonic using"
+    echo "  HKDF-SHA256. Writes OpenSSH format private key + .pub file."
     echo ""
-    echo "  Use -g to auto-generate a cryptographically secure 12-word mnemonic from the"
-    echo "  EFF Diceware list (printed for you to save/write down)."
+    echo "  -g generates cryptographically random words from the local EFF Diceware list."
+    echo "  The generated mnemonic is printed so you can write it down."
+    echo ""
+    echo "Security notes:"
+    echo "  - 12 words ≈ 155 bits of entropy (good default)"
+    echo "  - 18 words ≈ 230 bits"
+    echo "  - 24 words ≈ 310 bits"
+    echo "  - Always use --no-password only for testing or non-sensitive keys"
     echo ""
     echo "Examples:"
-    echo "  entrokey.fish \"abandon ability able about above absent absorb abstract absurd abuse access accident\""
-    echo "  entrokey.fish -g -n"
+    echo "  entrokey.fish -g -n -w 18 -f mykey"
+    echo "  entrokey.fish -f id_ed25519 \"word1 word2 ...\""
+    echo "  entrokey.fish -g --no-password"
     echo "  entrokey.fish -h"
 end
 
-argparse --stop-nonopt 'h/help' 'n/no-password' 'g/generate-mnemonic' -- $argv
+argparse \
+    'h/help' \
+    'V/version' \
+    'f/filename=' \
+    'n/no-password' \
+    'g/generate-mnemonic' \
+    'w/words=' \
+    -- $argv
 or return 1
 
 if set -q _flag_help
@@ -33,12 +54,38 @@ if set -q _flag_help
     exit 0
 end
 
+if set -q _flag_version
+    show_version
+    exit 0
+end
+
+# Determine word count
+set -l word_count 12
+if set -q _flag_words
+    set word_count $_flag_words
+    if not string match -qr '^[0-9]+$' -- $word_count
+        or test $word_count -lt 6
+        or test $word_count -gt 24
+        echo "Error: --words must be a number between 6 and 24" >&2
+        exit 1
+    end
+end
+
+# Handle mnemonic generation or input
 if set -q _flag_generate_mnemonic
-    set mnemonic (shuf -n 12 diceware.txt | string join ' ')
-    echo "Generated mnemonic (SAVE THIS!): $mnemonic"
+    if not test -f diceware.txt
+        echo "Error: diceware.txt not found in current directory." >&2
+        echo "Please ensure the wordlist is present." >&2
+        exit 1
+    end
+
+    set mnemonic (shuf -n $word_count diceware.txt | string join ' ')
+    echo "Generated $word_count-word mnemonic (WRITE THIS DOWN!):"
+    echo "  $mnemonic"
+    echo ""
 else
     if test (count $argv) -eq 0
-        echo "Error: No mnemonic provided. Use -g/--generate-mnemonic to auto-generate one."
+        echo "Error: No mnemonic provided. Use -g/--generate-mnemonic or provide words." >&2
         exit 1
     end
     set mnemonic $argv
@@ -49,24 +96,31 @@ if set -q _flag_no_password
     set use_encryption 0
 end
 
-read -P "Filename without extension (e.g. id_ed25519): " basename
+# Filename handling (non-interactive if -f given)
+if set -q _flag_filename
+    set basename $_flag_filename
+else
+    read -P "Filename without extension (e.g. id_ed25519): " basename
+end
 
 if test -z "$basename"
-    echo "No filename provided. Aborting."
+    echo "No filename provided. Aborting." >&2
     exit 1
 end
 
 if test $use_encryption -eq 1
     read -s -P "Enter passphrase for private key: " passphrase
+    echo
     read -s -P "Confirm passphrase: " passphrase2
+    echo
 
     if test "$passphrase" != "$passphrase2"
-        echo "Passphrases do not match. Aborting."
+        echo "Passphrases do not match. Aborting." >&2
         exit 1
     end
 
     if test -z "$passphrase"
-        echo "No passphrase provided. Aborting."
+        echo "No passphrase provided. Aborting." >&2
         exit 1
     end
 else
@@ -76,6 +130,7 @@ end
 set priv_key "$basename"
 set pub_key  "$basename.pub"
 
+# Generate the key
 if test $use_encryption -eq 1
     python3 -c "
 from mnemonic import Mnemonic
@@ -83,7 +138,6 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives import serialization
-import getpass
 import sys
 
 mnemo = Mnemonic('english')
@@ -148,19 +202,30 @@ print('Unencrypted private key generated successfully')
 end
 
 if test $status -ne 0
-    echo "Failed to generate key."
-    echo "Make sure the packages are installed: pip install mnemonic cryptography"
+    echo "Failed to generate key." >&2
+    echo "Make sure the packages are installed: pip install mnemonic cryptography" >&2
     exit 1
 end
 
 chmod 600 "$priv_key"
 
 echo
-if test $use_encryption -eq 1
-    echo "✓ Created (private key is encrypted with passphrase):"
-else
-    echo "✓ Created (private key is NOT encrypted):"
-end
+echo "✓ Key generated successfully"
 echo "  Private key : $priv_key"
 echo "  Public key  : $pub_key"
+
+# Show fingerprint if possible
+if command -v ssh-keygen >/dev/null 2>&1
+    set fp (ssh-keygen -lf "$pub_key" 2>/dev/null | awk '{print $2}')
+    if test -n "$fp"
+        echo "  Fingerprint : $fp"
+    end
+end
+
+echo
+if test $use_encryption -eq 1
+    echo "  (private key is encrypted with a passphrase)"
+else
+    echo "  (private key is NOT encrypted)"
+end
 echo
