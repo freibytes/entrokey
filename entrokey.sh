@@ -107,13 +107,17 @@ fi
 
 # Handle mnemonic generation or input
 if [ "$generate_mnemonic" -eq 1 ]; then
-    if [ ! -f diceware.txt ]; then
-        echo "Error: diceware.txt not found in current directory." >&2
-        echo "Please ensure the wordlist is present." >&2
+    # Resolve diceware.txt relative to this script (works after install to ~/.local/bin etc.)
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P 2>/dev/null || dirname "$0")"
+    DICEWARE="$SCRIPT_DIR/diceware.txt"
+    if [ ! -f "$DICEWARE" ]; then
+        echo "Error: diceware.txt not found next to entrokey.sh (looked in: $SCRIPT_DIR)" >&2
+        echo "Run the installer (./install.sh or make install) so diceware.txt is installed alongside the script." >&2
+        echo "Or cd into the source directory containing diceware.txt." >&2
         exit 1
     fi
 
-    mnemonic=$(shuf -n "$words" diceware.txt | tr '\n' ' ' | sed 's/ *$//')
+    mnemonic=$(shuf -n "$words" "$DICEWARE" | tr '\n' ' ' | sed 's/ *$//')
     echo "Generated $words-word mnemonic (WRITE THIS DOWN!):"
     echo "  $mnemonic"
     echo ""

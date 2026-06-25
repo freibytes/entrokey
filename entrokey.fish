@@ -75,13 +75,17 @@ end
 
 # Handle mnemonic generation or input
 if set -q _flag_generate_mnemonic
-    if not test -f diceware.txt
-        echo "Error: diceware.txt not found in current directory." >&2
-        echo "Please ensure the wordlist is present." >&2
+    # Resolve diceware.txt relative to this script (works after install)
+    set -l script_dir (dirname (status --current-filename))
+    set -l diceware "$script_dir/diceware.txt"
+    if not test -f "$diceware"
+        echo "Error: diceware.txt not found next to entrokey.fish (looked in: $script_dir)" >&2
+        echo "Run the installer (./install.sh or make install) so diceware.txt is installed alongside the script." >&2
+        echo "Or cd into the source directory containing diceware.txt." >&2
         exit 1
     end
 
-    set mnemonic (shuf -n $word_count diceware.txt | string join ' ')
+    set mnemonic (shuf -n $word_count "$diceware" | string join ' ')
     echo "Generated $word_count-word mnemonic (WRITE THIS DOWN!):"
     echo "  $mnemonic"
     echo ""

@@ -102,27 +102,28 @@ git clone https://github.com/freibytes/entrokey.git
 cd entrokey
 ```
 
-### Optional but Recommended: Install to ~/.local/bin
+### Recommended: Install with install.sh or Makefile
 
-This makes `entrokey` available from anywhere without typing the full path.
+After cloning, use the provided installer. This places the scripts **and** `diceware.txt` together so that `-g/--generate-mnemonic` works from **any directory**.
 
 ```bash
-# 1. Create the directory if it doesn't exist
-mkdir -p ~/.local/bin
+git clone https://github.com/freibytes/entrokey.git
+cd entrokey
 
-# 2. Copy the scripts and the wordlist
-cp entrokey.fish entrokey.sh diceware.txt ~/.local/bin/
+# User install (recommended)
+./install.sh
 
-# 3. Make them executable
-chmod +x ~/.local/bin/entrokey.fish ~/.local/bin/entrokey.sh
+# Or with make (same default)
+make install
 
-# 4. Add ~/.local/bin to your PATH (add this to your shell config if not already present)
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc     # for bash
-# or for fish:
-# echo 'set -U fish_user_paths $HOME/.local/bin $fish_user_paths' >> ~/.config/fish/config.fish
+# System-wide (requires appropriate permissions)
+# PREFIX=/usr/local ./install.sh
+# sudo make install PREFIX=/usr/local
 ```
 
-After this you can simply run:
+The installer outputs the exact PATH lines you need for bash or fish.
+
+After installation you can simply run:
 
 ```bash
 entrokey.fish -g -n -f mykey
@@ -130,13 +131,25 @@ entrokey.fish -g -n -f mykey
 entrokey.sh -g -n -f mykey
 ```
 
-> **Important**: When using `-g`, the script looks for `diceware.txt` in the current working directory.  
-> If you installed to `~/.local/bin`, you can still run `-g` from that directory, or copy `diceware.txt` to wherever you run the command.
+The diceware wordlist is now found automatically next to the installed script (no more "must be in current directory").
+
+You can also run `make uninstall` (or manually delete the three files in the bin dir) to remove.
+
+### Alternative: Manual copy (still works)
+
+If you prefer not to use the installer:
+
+```bash
+mkdir -p ~/.local/bin
+cp entrokey.fish entrokey.sh diceware.txt ~/.local/bin/
+chmod +x ~/.local/bin/entrokey.fish ~/.local/bin/entrokey.sh
+# Add ~/.local/bin to PATH (see output of ./install.sh for examples)
+```
 
 ### Other ways to run
 
-- Add the cloned folder temporarily: `export PATH="$PWD:$PATH"`
-- Always use the full path
+- Temporarily: `export PATH="$PWD:$PATH"`
+- Always use the full path to the script
 
 ## Usage
 
