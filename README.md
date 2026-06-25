@@ -65,6 +65,12 @@ sudo pacman -S python-pip fish   # fish optional
 pip install --user mnemonic cryptography
 ```
 
+You can also optionally install the `mnemonic` package from the AUR:
+
+```bash
+yay -S python-mnemonic   # or use paru / pikaur, etc.
+```
+
 **Fedora**
 
 ```bash
